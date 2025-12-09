@@ -1,0 +1,79 @@
+name: Sync Version from Main Repo
+
+on:
+  repository_dispatch:
+    types: [sync-version]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync_version:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load incoming version
+        run: |
+          echo "VERSION=${{ github.event.client_payload.version }}" >> $GITHUB_ENV
+          echo "Incoming version: $VERSION"
+
+      - name: Read current version from composer.json
+        run: |
+          CURRENT=$(jq -r '.version' composer.json)
+          echo "CURRENT_VERSION=$CURRENT" >> $GITHUB_ENV
+          echo "Local version: $CURRENT | Incoming: $VERSION"
+
+      # --------------------------------------------
+      # DECIDE WHETHER TO RUN OR STOP
+      # --------------------------------------------
+      - name: Check version difference
+        run: |
+          if [ "$VERSION" = "$CURRENT_VERSION" ]; then
+            echo "SHOULD_RUN=false" >> $GITHUB_ENV
+            echo "✔ Versions match → pipeline will stop."
+          else
+            echo "SHOULD_RUN=true" >> $GITHUB_ENV
+            echo "✘ Versions differ → pipeline continues."
+          fi
+
+      # --------------------------------------------
+      # STEPS BELOW RUN ONLY IF VERSION CHANGED
+      # --------------------------------------------
+
+      - name: Create branch
+        if: env.SHOULD_RUN == 'true'
+        run: |
+          BRANCH="sync-version-v${VERSION}"
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+          git checkout -b "$BRANCH"
+
+      - name: Update composer.json
+        if: env.SHOULD_RUN == 'true'
+        run: |
+          jq ".version = \"$VERSION\"" composer.json > tmp.json
+          mv tmp.json composer.json
+
+      - name: Commit and push changes
+        if: env.SHOULD_RUN == 'true'
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "ci-bot@github.com"
+          git add composer.json
+          git commit -m "chore: sync version to v${VERSION}"
+          git push origin "$BRANCH"
+
+      - name: Create Pull Request
+        if: env.SHOULD_RUN == 'true'
+        run: |
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Sync version to v${VERSION}" \
+            --body "Auto-synced version update."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
