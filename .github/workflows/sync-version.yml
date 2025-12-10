@@ -1,4 +1,4 @@
-name: Sync Version from Main Repo
+name: Sync Version from Master Repo
 
 on:
   repository_dispatch:
@@ -71,7 +71,7 @@ jobs:
         if: env.SHOULD_RUN == 'true'
         run: |
           gh pr create \
-            --base main \
+            --base master \
             --head "$BRANCH" \
             --title "Sync version to v${VERSION}" \
             --body "Auto-synced version update."
