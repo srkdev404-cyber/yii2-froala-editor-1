@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [closed]
     branches:
-      - main
+      - master
 
 permissions:
   contents: write
@@ -46,10 +46,10 @@ jobs:
           echo "Merge commit does NOT contain 'release: yes'. Skipping release."
           exit 0
 
-      - name: Checkout main
+      - name: Checkout master
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: master
 
       - name: Read version from composer.json
         id: version
